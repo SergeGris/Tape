@@ -98,10 +98,10 @@ void FileTape<Value>::write_fast(const Value &value) {
     file_stream.write(reinterpret_cast<const char *>(&value), sizeof(value));
 }
 
-template<typename valueT>
-bool FileTape<valueT>::setpos(std::fstream::pos_type off) {
+template<typename value_type>
+bool FileTape<value_type>::setpos(std::fstream::pos_type off) {
     std::this_thread::sleep_for(rewind_delay);
-    file_stream.seekg(off * std::streamoff(sizeof(valueT)));
+    file_stream.seekg(off * std::streamoff(sizeof(value_type)));
     return true;
 }
 

@@ -4,7 +4,7 @@
 #include <fstream>
 #include <vector>
 
-// Интерфейс для работы с лентой. valueT -- тип данных на ленте.
+// Интерфейс для работы с лентой. value_type -- тип данных на ленте.
 template<typename value_type>
 class Tape {
 public:
