@@ -12,7 +12,6 @@ Configuration::Configuration(const std::string &file_name)
     keysWithDefaultValues["WriteDelay"]          = &WriteDelay;
     keysWithDefaultValues["MoveDelay"]           = &MoveDelay;
     keysWithDefaultValues["RewindDelay"]         = &RewindDelay;
-    keysWithDefaultValues["GapCrossDelay"]       = &GapCrossDelay;
     keysWithDefaultValues["MemoryLimit"]         = &MemoryLimit;
 
     std::ifstream input(file_name);
@@ -81,10 +80,6 @@ std::uint64_t Configuration::getMoveDelay() const {
 
 std::uint64_t Configuration::getRewindDelay() const {
     return RewindDelay;
-}
-
-std::uint64_t Configuration::getGapCrossDelay() const {
-    return GapCrossDelay;
 }
 
 std::uint64_t Configuration::getMemoryLimit() const {
