@@ -77,8 +77,8 @@ void FileTape<value_type>::write(const value_type &value) {
 template<typename value_type>
 value_type FileTape<value_type>::peek() {
     std::this_thread::sleep_for(read_delay);
-    value_type value;
     const auto before = file_stream.tellg();
+    value_type value;
     file_stream.read(reinterpret_cast<char *>(&value), sizeof(value));
     file_stream.seekg(before);
     return value;

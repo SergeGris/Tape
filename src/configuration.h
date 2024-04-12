@@ -26,10 +26,10 @@ private:
     std::uint64_t MemoryLimit = 1024 * 1024 * 1024; // 1 GiB
 
     std::unordered_map<std::string, std::uint64_t *> keysWithDefaultValues = {
-        {"ReadDelay", &ReadDelay},
-        {"WriteDelay", &WriteDelay},
-        {"MoveDelay", &MoveDelay},
-        {"RewindDelay", &RewindDelay},
-        {"MemoryLimit", &MemoryLimit},
+        { "ReadDelay",   &ReadDelay },
+        { "WriteDelay",  &WriteDelay },
+        { "MoveDelay",   &MoveDelay },
+        { "RewindDelay", &RewindDelay },
+        { "MemoryLimit", &MemoryLimit },
     };
 };

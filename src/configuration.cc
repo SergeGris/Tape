@@ -8,11 +8,11 @@
 
 Configuration::Configuration(const std::string &file_name)
 {
-    keysWithDefaultValues["ReadDelay"]           = &ReadDelay;
-    keysWithDefaultValues["WriteDelay"]          = &WriteDelay;
-    keysWithDefaultValues["MoveDelay"]           = &MoveDelay;
-    keysWithDefaultValues["RewindDelay"]         = &RewindDelay;
-    keysWithDefaultValues["MemoryLimit"]         = &MemoryLimit;
+    keysWithDefaultValues["ReadDelay"]   = &ReadDelay;
+    keysWithDefaultValues["WriteDelay"]  = &WriteDelay;
+    keysWithDefaultValues["MoveDelay"]   = &MoveDelay;
+    keysWithDefaultValues["RewindDelay"] = &RewindDelay;
+    keysWithDefaultValues["MemoryLimit"] = &MemoryLimit;
 
     std::ifstream input(file_name);
 

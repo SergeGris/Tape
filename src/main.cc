@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <iostream>
 
+#include "tape-provider.h"
 #include "tape-file.h"
 #include "tape-sort.h"
 
@@ -13,13 +14,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    using value_type = std::int32_t;
-    const Configuration config;
-    FileTape<value_type> input_file_tape(config, argv[1]);
-    FileTape<value_type> output_file_tape(config, argv[2]);
-
     try {
-        TapeSort<value_type>(config, input_file_tape, output_file_tape).sort();
+        const Configuration config;
+        FileTape<std::int32_t> input_file_tape(config, argv[1]), output_file_tape(config, argv[2]);
+        FileTapeProvider<std::int32_t> provider(config);
+        TapeSort<std::int32_t>(config, provider, input_file_tape, output_file_tape).sort();
         return 0;
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;

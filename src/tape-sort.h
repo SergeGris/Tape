@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <fstream>
 
+#include "tape-provider.h"
 #include "configuration.h"
 #include "tape.h"
 #include "tape-file.h"
@@ -12,9 +13,11 @@ template<typename value_type, typename comparator = std::less<value_type>>
 class TapeSort {
 public:
     TapeSort(const Configuration &config,
+             const TapeProvider<value_type> &provider,
              Tape<value_type> &input_tape,
              Tape<value_type> &output_tape)
         : config(config),
+          provider(provider),
           input_tape(input_tape),
           output_tape(output_tape) {
         if (std::filesystem::exists(temporary_directory)) {
@@ -34,17 +37,18 @@ public:
 
 private:
     const Configuration &config;
+    const TapeProvider<value_type> &provider;
     Tape<value_type> &input_tape;
     Tape<value_type> &output_tape;
 
     std::string temporary_directory = "/tmp/tapes";
 
-    FileTape<value_type> create_temporary_tape(std::string name) {
-        return FileTape<value_type>(config, (std::filesystem::path(temporary_directory) / std::filesystem::path(name)).c_str());
+    std::unique_ptr<Tape<value_type>> create_temporary_tape(std::string name) {
+        return provider.create_tape(std::filesystem::path(temporary_directory) / std::filesystem::path(name));
     }
 
-    void merge(Tape<value_type> &in, Tape<value_type> &out, size_t low, size_t middle, size_t high);
-    void merge_sort(Tape<value_type> &in, Tape<value_type> &out, size_t low, size_t high);
+    void merge(Tape<value_type> &in, Tape<value_type> &out, std::size_t low, std::size_t middle, std::size_t high);
+    void merge_sort(Tape<value_type> &in, Tape<value_type> &out, std::size_t low, std::size_t high);
 };
 
 template<typename value_type, typename comparator>
@@ -67,50 +71,43 @@ void TapeSort<value_type, comparator>::merge(Tape<value_type> &in, Tape<value_ty
     in.setpos(low);
 
     for (std::size_t i = 0; i < low_size; i++) {
-        first.write(in.read());
+        first->write(in.read());
     }
 
-    in.setpos(middle + 1);
-
     for (std::size_t j = 0; j < high_size; j++) {
-        second.write(in.read());
+        second->write(in.read());
     }
 
     std::size_t i = 0;
     std::size_t j = 0;
-    std::size_t k = low;
 
-    first.rewind();
-    second.rewind();
-    out.setpos(k);
+    first->rewind();
+    second->rewind();
+    out.setpos(low);
 
     while (i < low_size && j < high_size) {
-        auto first_i = first.peek();
-        auto second_j = second.peek();
+        auto first_i = first->peek();
+        auto second_j = second->peek();
 
         if (compare(first_i, second_j)) {
             out.write(first_i);
-            first.stepForward();
+            first->stepForward();
             i++;
         } else {
             out.write(second_j);
-            second.stepForward();
+            second->stepForward();
             j++;
         }
-
-        k++;
     }
 
     while (i < low_size) {
-        out.write(first.read());
+        out.write(first->read());
         i++;
-        k++;
     }
 
     while (j < high_size) {
-        out.write(second.read());
+        out.write(second->read());
         j++;
-        k++;
     }
 }
 
@@ -118,7 +115,7 @@ template<typename value_type, typename comparator>
 void TapeSort<value_type, comparator>::merge_sort(Tape<value_type> &in,
                                                   Tape<value_type> &out,
                                                   size_t low, size_t high) {
-    size_t total = high - low;
+    std::size_t total = high - low;
 
     if (low >= high) {
         return;
@@ -130,7 +127,7 @@ void TapeSort<value_type, comparator>::merge_sort(Tape<value_type> &in,
 
         in.setpos(low);
 
-        for (size_t i = 0; i < total; i++) {
+        for (std::size_t i = 0; i < total; i++) {
             vec[i] = in.read();
         }
 
@@ -142,7 +139,7 @@ void TapeSort<value_type, comparator>::merge_sort(Tape<value_type> &in,
             out.write(vec[i]);
         }
     } else {
-        size_t middle = low + (high - low) / 2;
+        std::size_t middle = low + (high - low) / 2;
 
         merge_sort(in, out, low, middle);
         merge_sort(in, out, middle + 1, high);
