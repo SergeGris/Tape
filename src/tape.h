@@ -18,6 +18,7 @@ public:
     [[nodiscard]] virtual value_type peek() = 0;
     [[nodiscard]] virtual value_type read() = 0;
     virtual void write(const value_type &value) = 0;
+    [[nodiscard]] virtual bool end_of_tape() const = 0;
 
     virtual void stepForward() = 0;
     virtual bool setpos(std::fstream::pos_type off) = 0;

@@ -11,9 +11,6 @@
 template<typename value_type>
 class TapeProvider {
 public:
-    //TapeProvider(const Configuration &config) = delete;
-    virtual ~TapeProvider() = default;
-
     [[nodiscard]] virtual std::unique_ptr<Tape<value_type>> create_tape(const std::filesystem::path &path) const = 0;
 };
 

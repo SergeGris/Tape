@@ -3,7 +3,24 @@ SOURCES = \
         src/main.cc \
         src/configuration.cc
 
-CFLAGS=-Wall -Wextra -O2
+OPT?=-O2 -fPIE -pipe -ffunction-sections -fdata-sections -fstack-protector-all
+CXXFLAGS=-Wall -Wextra $(OPT) -pg -fsanitize=address -fsanitize=undefined
+DEPSDIR:=.deps
 
-all:
-	g++ $(CFLAGS) $(SOURCES) -o tape-sort
+all: tape-sort tests
+
+.cc.o: $(@:.o=.cc)
+	@mkdir -p $(DEPSDIR)
+	@echo -e "  CC\t$(@:.o=.cc)"
+	@$(CXX) $(CXXFLAGS) -c -o $@ -MMD -MP -MF $(DEPSDIR)/"$(@F:.o=.d)" $(@:.o=.cc)
+
+DEPS:=$(wildcard $(DEPSDIR)/*.d)
+
+-include $(DEPS)
+
+tape-sort: $(SOURCES:.cc=.o)
+	@echo -e "  CCLD\t$@"
+	@$(CXX) $(CXXFLAGS) -o $@ $^
+
+tests: tape-sort
+	@make -C tests

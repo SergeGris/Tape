@@ -23,6 +23,7 @@ public:
     [[nodiscard]] value_type peek() override;
     [[nodiscard]] value_type read() override;
     void write(const value_type &value) override;
+    [[nodiscard]] bool end_of_tape() const override;
 
     void stepForward() override;
     bool setpos(std::fstream::pos_type off) override;
@@ -60,6 +61,12 @@ FileTape<value_type>::FileTape(const Configuration &config,
     if (!file_stream) {
         throw std::invalid_argument("Failed to open the file with name '" + file_name + "'.");
     }
+}
+
+
+template<typename value_type>
+bool FileTape<value_type>::end_of_tape() const {
+    return file_stream.eof();
 }
 
 template<typename value_type>
