@@ -2,6 +2,7 @@
 #pragma once
 
 #include <fstream>
+#include <optional>
 #include <vector>
 
 // Интерфейс для работы с лентой. value_type -- тип данных на ленте.
@@ -15,14 +16,10 @@ public:
     Tape &operator=(Tape &&other) = default;
     virtual ~Tape() = default;
 
-    [[nodiscard]] virtual value_type peek() = 0;
-    [[nodiscard]] virtual value_type read() = 0;
+    [[nodiscard]] virtual std::optional<value_type> peek() = 0;
+    [[nodiscard]] virtual std::optional<value_type> read() = 0;
+    [[nodiscard]] virtual size_t readblock(std::vector<value_type> &vector, std::size_t count) = 0;
     virtual void write(const value_type &value) = 0;
-    [[nodiscard]] virtual bool end_of_tape() const = 0;
-
-    virtual void stepForward() = 0;
-    virtual bool setpos(std::fstream::pos_type off) = 0;
-    virtual void rewind() = 0;
-
+    virtual void writeblock(const std::vector<value_type> &vector, std::size_t count) = 0;
     [[nodiscard]] virtual std::size_t size() = 0;
 };

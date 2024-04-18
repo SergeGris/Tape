@@ -4,7 +4,7 @@ SOURCES = \
         src/configuration.cc
 
 OPT?=-O2 -fPIE -pipe -ffunction-sections -fdata-sections -fstack-protector-all
-CXXFLAGS=-Wall -Wextra $(OPT) -pg -fsanitize=address -fsanitize=undefined
+CXXFLAGS=-Wall -Wextra $(OPT)
 DEPSDIR:=.deps
 
 all: tape-sort tests

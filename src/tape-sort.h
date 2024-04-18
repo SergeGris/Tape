@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <queue>
 
 #include "tape-provider.h"
 #include "configuration.h"
@@ -27,122 +28,178 @@ public:
         std::filesystem::create_directory(temporary_directory);
     }
 
-    void sort();
-
     ~TapeSort() {
         if (std::filesystem::exists(temporary_directory)) {
             std::filesystem::remove_all(temporary_directory);
         }
     }
 
+    void sort();
 private:
     const Configuration &config;
     const TapeProvider<value_type> &provider;
     Tape<value_type> &input_tape;
     Tape<value_type> &output_tape;
 
-    std::string temporary_directory = "/tmp/tapes";
+    const std::filesystem::path temporary_directory = std::filesystem::temp_directory_path() / "tapes";
 
     std::unique_ptr<Tape<value_type>> create_temporary_tape(std::string name) {
-        return provider.create_tape(std::filesystem::path(temporary_directory) / std::filesystem::path(name));
+        return provider.create_tape(temporary_directory / std::filesystem::path(name));
     }
 
-    void merge(Tape<value_type> &in, Tape<value_type> &out, std::size_t low, std::size_t middle, std::size_t high);
-    void merge_sort(Tape<value_type> &in, Tape<value_type> &out, std::size_t low, std::size_t high);
+    void merge(const std::vector<size_t> &merge_candidates_id, Tape<value_type> &merged_tape);
+};
+
+template<typename value_type>
+class TapeBlock {
+public:
+    TapeBlock(std::unique_ptr<Tape<value_type>> tape, std::size_t max_block_size)
+        : max_block_size(max_block_size), data(max_block_size), tape(std::move(tape)) {
+        update();
+    }
+
+    bool update() {
+        current_size = tape->readblock(data, max_block_size);
+        return current_size != 0;
+    }
+
+    std::size_t size() const {
+        return current_size;
+    }
+
+    value_type at(size_t i) const {
+        if (i < current_size) {
+            return data[i];
+        } else {
+            throw std::runtime_error("index out of range");
+        }
+    }
+
+private:
+    size_t current_size = 0;
+    size_t max_block_size;
+    std::vector<value_type> data;
+    std::unique_ptr<Tape<value_type>> tape;
+};
+
+template<typename value_type>
+class TapeBlockPriorityStack {
+public:
+    TapeBlockPriorityStack(std::vector<std::unique_ptr<Tape<value_type>>> block_tapes, std::size_t max_block_size)
+        : max_block_size(max_block_size) {
+        for (auto &tape_ptr : block_tapes) {
+            block_stack.emplace_back(std::move(tape_ptr), max_block_size);
+        }
+
+        for (auto &block : block_stack) {
+            priority_queue.emplace(&block, 0);
+        }
+    }
+
+    bool empty() const {
+        return priority_queue.empty();
+    }
+
+    value_type peek() const {
+        return priority_queue.top().first->at(priority_queue.top().second);
+    }
+
+    void pop() {
+        IndexedBlock top_block = priority_queue.top();
+        priority_queue.pop();
+
+        if (top_block.second + 1 < top_block.first->size()) {
+            top_block.second++;
+            priority_queue.emplace(top_block);
+            return;
+        }
+
+        if (top_block.first->update()) {
+            top_block.second = 0;
+            priority_queue.emplace(top_block);
+        }
+    }
+
+private:
+    using IndexedBlock = std::pair<TapeBlock<value_type> *, std::size_t>;
+
+    struct IndexedBlockComparator {
+        bool operator()(const IndexedBlock &lhs, const IndexedBlock &rhs) {
+            return lhs.first->at(lhs.second) > rhs.first->at(rhs.second);
+        }
+    };
+
+    std::vector<TapeBlock<value_type>> block_stack;
+    std::size_t max_block_size;
+    std::priority_queue<IndexedBlock, std::vector<IndexedBlock>, IndexedBlockComparator> priority_queue;
 };
 
 template<typename value_type, typename comparator>
 void TapeSort<value_type, comparator>::sort() {
-    merge_sort(input_tape, output_tape, 0, input_tape.size() / sizeof(value_type));
-}
+    const std::size_t max_buffer_size = config.getMemoryLimit() / sizeof(value_type);
+    const std::size_t max_tapes_to_merge = max_buffer_size; // No more than memory given
 
-template<typename value_type, typename comparator>
-void TapeSort<value_type, comparator>::merge(Tape<value_type> &in, Tape<value_type> &out,
-                                             size_t low, size_t middle, size_t high) {
-    std::size_t low_size = middle - low + 1;
-    std::size_t high_size = high - middle;
-    auto compare = comparator();
+    std::size_t number_of_sorted_tapes = 0;
+    std::queue<std::size_t> tapes_queue;
 
-    // Так как сортировка производится в один поток, то можем быть уверены,
-    // что в данный момент эти файлы не используются
-    auto first = create_temporary_tape("0");
-    auto second = create_temporary_tape("1");
+    {
+        std::vector<value_type> buffer(max_buffer_size);
+        std::size_t count;
 
-    in.setpos(low);
-
-    for (std::size_t i = 0; i < low_size; i++) {
-        first->write(in.read());
-    }
-
-    for (std::size_t j = 0; j < high_size; j++) {
-        second->write(in.read());
-    }
-
-    std::size_t i = 0;
-    std::size_t j = 0;
-
-    first->rewind();
-    second->rewind();
-    out.setpos(low);
-
-    while (i < low_size && j < high_size) {
-        auto first_i = first->peek();
-        auto second_j = second->peek();
-
-        if (compare(first_i, second_j)) {
-            out.write(first_i);
-            first->stepForward();
-            i++;
-        } else {
-            out.write(second_j);
-            second->stepForward();
-            j++;
+        while ((count = input_tape.readblock(buffer, max_buffer_size)) != 0) {
+            std::sort(buffer.begin(), buffer.begin() + count, comparator());
+            tapes_queue.push(number_of_sorted_tapes);
+            auto tape = create_temporary_tape(std::to_string(number_of_sorted_tapes++));
+            tape->writeblock(buffer, count);
         }
     }
 
-    while (i < low_size) {
-        out.write(first->read());
-        i++;
-    }
+    std::size_t merge_tape_number = number_of_sorted_tapes;
+    std::vector<std::size_t> tapes_to_merge;
 
-    while (j < high_size) {
-        out.write(second->read());
-        j++;
+    while (!tapes_queue.empty()) {
+        while (!tapes_queue.empty() && tapes_to_merge.size() < max_tapes_to_merge) {
+            tapes_to_merge.push_back(tapes_queue.front());
+            tapes_queue.pop();
+        }
+
+        if (tapes_queue.empty()) {
+            merge(tapes_to_merge, output_tape);
+            return;
+        }
+
+        auto merged_tape(create_temporary_tape(std::to_string(merge_tape_number)));
+        merge(tapes_to_merge, *merged_tape.get());
+        tapes_to_merge.clear();
+        tapes_queue.push(merge_tape_number);
+        merge_tape_number++;
     }
 }
 
 template<typename value_type, typename comparator>
-void TapeSort<value_type, comparator>::merge_sort(Tape<value_type> &in,
-                                                  Tape<value_type> &out,
-                                                  size_t low, size_t high) {
-    std::size_t total = high - low;
+void TapeSort<value_type, comparator>::merge(const std::vector<std::size_t> &merge_candidates_id,
+                                             Tape<value_type> &merged_tape) {
+    const std::size_t block_size = config.getMemoryLimit() / sizeof(value_type);
+    std::vector<std::unique_ptr<Tape<value_type>>> tapes_to_merge;
 
-    if (low >= high) {
-        return;
+    for (auto id : merge_candidates_id) {
+        tapes_to_merge.emplace_back(create_temporary_tape(std::to_string(id)));
     }
 
-    // Если у нас достаточно памяти, чтобы уместить данный отрезок, то отсортируем его в памяти.
-    if (high - low <= config.getMemoryLimit() / sizeof(value_type)) {
-        std::vector<value_type> vec(total);
+    std::vector<value_type> merged_block;
+    TapeBlockPriorityStack stack(std::move(tapes_to_merge), block_size);
 
-        in.setpos(low);
+    while (!stack.empty()) {
+        merged_block.push_back(stack.peek());
+        stack.pop();
 
-        for (std::size_t i = 0; i < total; i++) {
-            vec[i] = in.read();
+        if (merged_block.size() == block_size) {
+            merged_tape.writeblock(merged_block, block_size);
+            merged_block.clear();
         }
+    }
 
-        std::sort(vec.begin(), vec.end(), comparator());
-
-        out.setpos(low);
-
-        for (size_t i = 0; i < total; i++) {
-            out.write(vec[i]);
-        }
-    } else {
-        std::size_t middle = low + (high - low) / 2;
-
-        merge_sort(in, out, low, middle);
-        merge_sort(in, out, middle + 1, high);
-        merge(in, out, low, middle, high);
+    if (!merged_block.empty()) {
+        merged_tape.writeblock(merged_block, merged_block.size());
     }
 }

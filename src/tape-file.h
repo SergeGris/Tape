@@ -6,12 +6,13 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <optional>
 
 #include "configuration.h"
 #include "tape.h"
 
 // Эмулятор ленты, использующий файл.
-template<typename value_type = std::int32_t>
+template<typename value_type>
 class FileTape : public Tape<value_type> {
 public:
     FileTape(const Configuration &config, const std::string &name);
@@ -20,20 +21,16 @@ public:
     FileTape &operator=(const FileTape &other) = delete;
     FileTape &operator=(FileTape &&other) = default;
 
-    [[nodiscard]] value_type peek() override;
-    [[nodiscard]] value_type read() override;
+    [[nodiscard]] std::optional<value_type> peek() override;
+    [[nodiscard]] std::optional<value_type> read() override;
+    [[nodiscard]] std::size_t readblock(std::vector<value_type> &vector, std::size_t count) override;
     void write(const value_type &value) override;
-    [[nodiscard]] bool end_of_tape() const override;
-
-    void stepForward() override;
-    bool setpos(std::fstream::pos_type off) override;
-    void rewind() override;
-
+    void writeblock(const std::vector<value_type> &vector, std::size_t count) override;
     [[nodiscard]] std::size_t size() override;
 
 private:
     void write_fast(const value_type &value);
-    [[nodiscard]] value_type read_fast();
+    [[nodiscard]] std::optional<value_type> read_fast();
 
     std::fstream file_stream;
 
@@ -63,16 +60,28 @@ FileTape<value_type>::FileTape(const Configuration &config,
     }
 }
 
-
 template<typename value_type>
-bool FileTape<value_type>::end_of_tape() const {
-    return file_stream.eof();
+std::optional<value_type> FileTape<value_type>::read() {
+    std::this_thread::sleep_for(read_delay + move_delay);
+    return read_fast();
 }
 
 template<typename value_type>
-value_type FileTape<value_type>::read() {
-    std::this_thread::sleep_for(read_delay + move_delay);
-    return read_fast();
+std::size_t FileTape<value_type>::readblock(std::vector<value_type> &vec, std::size_t count) {
+    std::size_t i;
+
+    for (i = 0; i < count; i++) {
+        const auto value = read_fast();
+
+        if (!value) {
+            break;
+        }
+
+        vec[i] = *value;
+    }
+
+    std::this_thread::sleep_for((read_delay + move_delay) * i);
+    return i;
 }
 
 template<typename value_type>
@@ -82,47 +91,40 @@ void FileTape<value_type>::write(const value_type &value) {
 }
 
 template<typename value_type>
-value_type FileTape<value_type>::peek() {
+void FileTape<value_type>::writeblock(const std::vector<value_type> &vec, std::size_t count) {
+    std::size_t i;
+
+    for (i = 0; i < count && !file_stream.eof(); i++) {
+        write_fast(vec[i]);
+    }
+
+    std::this_thread::sleep_for((write_delay + move_delay) * i);
+}
+
+template<typename value_type>
+std::optional<value_type> FileTape<value_type>::peek() {
     std::this_thread::sleep_for(read_delay);
     const auto before = file_stream.tellg();
-    value_type value;
-    file_stream.read(reinterpret_cast<char *>(&value), sizeof(value));
+    auto value = read_fast();
     file_stream.seekg(before);
     return value;
 }
 
 template<typename value_type>
-value_type FileTape<value_type>::read_fast() {
+std::optional<value_type> FileTape<value_type>::read_fast() {
     value_type value;
-    const auto before = file_stream.tellg();
     file_stream.read(reinterpret_cast<char *>(&value), sizeof(value));
+
+    if (file_stream.eof()) {
+        return std::nullopt;
+    }
+
     return value;
 }
 
 template<typename Value>
 void FileTape<Value>::write_fast(const Value &value) {
-    const auto before = file_stream.tellg();
     file_stream.write(reinterpret_cast<const char *>(&value), sizeof(value));
-}
-
-template<typename value_type>
-bool FileTape<value_type>::setpos(std::fstream::pos_type off) {
-    std::this_thread::sleep_for(rewind_delay);
-    file_stream.seekg(off * std::streamoff(sizeof(value_type)));
-    return true;
-}
-
-template<typename value_type>
-void FileTape<value_type>::stepForward() {
-    std::this_thread::sleep_for(move_delay);
-    const auto initial_pos = file_stream.tellg();
-    file_stream.seekg(initial_pos + std::streamoff(sizeof(value_type)));
-}
-
-template<typename value_type>
-void FileTape<value_type>::rewind() {
-    std::this_thread::sleep_for(rewind_delay);
-    file_stream.seekg(0);
 }
 
 template<typename value_type>
