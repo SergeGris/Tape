@@ -23,7 +23,7 @@ Configuration::Configuration(const std::string &file_name)
 
     std::string line;
 
-    for (size_t lineno = 1;
+    for (std::size_t lineno = 1;
          getline(input, line, '\n');
          lineno++) {
         std::string key;

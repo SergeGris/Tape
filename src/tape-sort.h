@@ -47,7 +47,7 @@ private:
         return provider.create_tape(temporary_directory / std::filesystem::path(name));
     }
 
-    void merge(const std::vector<size_t> &merge_candidates_id, Tape<value_type> &merged_tape);
+    void merge(const std::vector<std::size_t> &merge_candidates_id, Tape<value_type> &merged_tape);
 };
 
 template<typename value_type>
@@ -67,7 +67,7 @@ public:
         return current_size;
     }
 
-    value_type at(size_t i) const {
+    value_type at(std::size_t i) const {
         if (i < current_size) {
             return data[i];
         } else {
@@ -76,8 +76,8 @@ public:
     }
 
 private:
-    size_t current_size = 0;
-    size_t max_block_size;
+    std::size_t current_size = 0;
+    std::size_t max_block_size;
     std::vector<value_type> data;
     std::unique_ptr<Tape<value_type>> tape;
 };
@@ -137,16 +137,19 @@ private:
 template<typename value_type, typename comparator>
 void TapeSort<value_type, comparator>::sort() {
     const std::size_t max_buffer_size = config.getMemoryLimit() / sizeof(value_type);
-    const std::size_t max_tapes_to_merge = max_buffer_size; // No more than memory given
+    const std::size_t max_tapes_to_merge = max_buffer_size; // No more than memory given.
 
     std::size_t number_of_sorted_tapes = 0;
     std::queue<std::size_t> tapes_queue;
 
-    {
-        std::vector<value_type> buffer(max_buffer_size);
+    {   // Use scope to destroy buffer after sorting tapes to merge.
+        const std::size_t tape_size = input_tape.size();
+        const std::size_t buffer_size = max_buffer_size >= tape_size ? tape_size : max_buffer_size;
+
+        std::vector<value_type> buffer(buffer_size);
         std::size_t count;
 
-        while ((count = input_tape.readblock(buffer, max_buffer_size)) != 0) {
+        while ((count = input_tape.readblock(buffer, buffer_size)) != 0) {
             std::sort(buffer.begin(), buffer.begin() + count, comparator());
             tapes_queue.push(number_of_sorted_tapes);
             auto tape = create_temporary_tape(std::to_string(number_of_sorted_tapes++));

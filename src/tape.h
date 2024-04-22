@@ -18,7 +18,7 @@ public:
 
     [[nodiscard]] virtual std::optional<value_type> peek() = 0;
     [[nodiscard]] virtual std::optional<value_type> read() = 0;
-    [[nodiscard]] virtual size_t readblock(std::vector<value_type> &vector, std::size_t count) = 0;
+    [[nodiscard]] virtual std::size_t readblock(std::vector<value_type> &vector, std::size_t count) = 0;
     virtual void write(const value_type &value) = 0;
     virtual void writeblock(const std::vector<value_type> &vector, std::size_t count) = 0;
     [[nodiscard]] virtual std::size_t size() = 0;
