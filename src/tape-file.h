@@ -10,6 +10,7 @@
 
 #include "configuration.h"
 #include "tape.h"
+#include "tape-provider.h"
 
 // Эмулятор ленты, использующий файл.
 template<typename value_type>

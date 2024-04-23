@@ -54,12 +54,14 @@ template<typename value_type>
 class TapeBlock {
 public:
     TapeBlock(std::unique_ptr<Tape<value_type>> tape, std::size_t max_block_size)
-        : max_block_size(max_block_size), data(max_block_size), tape(std::move(tape)) {
+        : block_size(max_block_size <= tape->size() ? max_block_size : tape->size()),
+          data(block_size),
+          tape(std::move(tape)) {
         update();
     }
 
     bool update() {
-        current_size = tape->readblock(data, max_block_size);
+        current_size = tape->readblock(data, block_size);
         return current_size != 0;
     }
 
@@ -77,7 +79,7 @@ public:
 
 private:
     std::size_t current_size = 0;
-    std::size_t max_block_size;
+    std::size_t block_size;
     std::vector<value_type> data;
     std::unique_ptr<Tape<value_type>> tape;
 };
